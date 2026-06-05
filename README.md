@@ -1,10 +1,10 @@
 # Rachinha 🍻
 
-Rachinha é um aplicativo móvel, desenvolvido com Flutter, criado para facilitar a divisão de contas de bar e restaurante entre amigos. Intuitivo, rápido e totalmente offline, ele é a ferramenta definitiva para acabar com as contas em guardanapos ou na calculadora do celular!
+Rachinha é um aplicativo multiplataforma (Mobile e Web), desenvolvido com Flutter, criado para facilitar a divisão de contas de bar e restaurante entre amigos. Intuitivo, rápido e salvo na nuvem, ele é a ferramenta definitiva para acabar com as contas em guardanapos ou na calculadora do celular!
 
 ## 🎯 Objetivo
 
-O projeto nasceu da necessidade de ter uma ferramenta privada, offline e fácil de usar para gerenciar despesas em grupo. Com o Rachinha, o usuário pode criar um evento (uma "comanda"), adicionar os participantes, lançar os itens consumidos e vincular quem consumiu o quê. Ao final, o app calcula a parte de cada um, incluindo a taxa de serviço, e gera um resumo pronto para ser compartilhado.
+O projeto nasceu da necessidade de ter uma ferramenta fácil de usar para gerenciar despesas em grupo. Com o Rachinha, o usuário pode criar um evento (uma "comanda"), adicionar os participantes, lançar os itens consumidos e vincular quem consumiu o quê. Ao final, o app calcula a parte de cada um, incluindo a taxa de serviço, e gera um resumo pronto para ser compartilhado.
 
 ## ✨ Funcionalidades Principais
 

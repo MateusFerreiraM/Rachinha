@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../helpers/database_helper.dart';
 import '../widgets/empty_state_widget.dart';
 import 'comanda_screen.dart';
+import 'login_screen.dart';
 import '../theme/app_colors.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -67,25 +69,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   } else {
                     final newBarData = {
                       'nome': nome,
-                      'createdAt': DateTime.now().toIso8601String(),
+                      'created_at': DateTime.now().toIso8601String(),
                     };
-                    final newId = await _dbHelper.insertBar(newBarData);
-                    final newBar = {
-                      'id': newId,
-                      'nome': newBarData['nome'],
-                      'createdAt': newBarData['createdAt'],
-                    };
+                    try {
+                      final newId = await _dbHelper.insertBar(newBarData);
+                      final newBar = {
+                        'id': newId,
+                        'nome': newBarData['nome'],
+                        'created_at': newBarData['created_at'],
+                      };
                     
-                    final wasEmpty = _bares.isEmpty;
-                    _bares.insert(0, newBar);
+                      final wasEmpty = _bares.isEmpty;
+                      _bares.insert(0, newBar);
 
-                    if (wasEmpty) {
-                      setState(() {});
-                    } else {
-                      _listKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 300));
+                      if (wasEmpty) {
+                        setState(() {});
+                      } else {
+                        _listKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 300));
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao criar bar: $e')));
+                      }
                     }
                   }
-                  Navigator.of(context).pop();
+                  if (context.mounted) Navigator.of(context).pop();
                 }
               },
             ),
@@ -136,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildItem(Map<String, dynamic> bar, Animation<double> animation) {
     // **** CORREÇÃO DE FUSO HORÁRIO APLICADA AQUI ****
-    final localDateTime = DateTime.parse(bar['createdAt']).toLocal();
+    final localDateTime = DateTime.parse(bar['created_at']).toLocal();
 
     return SizeTransition(
       sizeFactor: animation,
@@ -157,6 +165,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meus Bares'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair da Conta',
+            onPressed: () async {
+              await Supabase.instance.client.auth.signOut();
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: _bares.isEmpty
           ? const EmptyStateWidget(
@@ -172,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemBuilder: (context, index, animation) {
                 final bar = _bares[index];
                 // **** CORREÇÃO DE FUSO HORÁRIO APLICADA AQUI ****
-                final localDateTime = DateTime.parse(bar['createdAt']).toLocal();
+                final localDateTime = DateTime.parse(bar['created_at'] ?? DateTime.now().toIso8601String()).toLocal();
                 return SizeTransition(
                   sizeFactor: animation,
                   child: Card(

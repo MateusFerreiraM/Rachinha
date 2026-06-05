@@ -118,7 +118,7 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Informe o valor TOTAL do item. Depois, você poderá dividir a quantidade que cada pessoa consumiu.',
+                      'Informe o preço de 1 unidade deste item (ex: 1 cerveja). Use o botão +1 na lista quando pedirem mais.',
                       style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                     ),
                   ),
@@ -130,11 +130,11 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
                 controller: nomeController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                    hintText: 'Nome do item (ex: Porção de Fritas)')),
+                    hintText: 'Nome do item (ex: Cerveja, Fritas)')),
             TextField(
                 controller: valorController,
                 decoration:
-                    const InputDecoration(hintText: 'Valor total do item'),
+                    const InputDecoration(hintText: 'Preço de 1 unidade (R\$)'),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true)),
           ],
@@ -152,7 +152,9 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
                   await _dbHelper.insertItem({
                     'id_comanda': widget.comandaId,
                     'descricao': nome,
-                    'valor_total': valor
+                    'valor_total': valor,
+                    'preco_unitario': valor,
+                    'quantidade': 1
                   });
                   Navigator.pop(context);
                   _loadAllData();
@@ -162,6 +164,100 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
         ],
       ),
     );
+  }
+
+  void _showEditItemDialog(Map<String, dynamic> item) {
+    final nomeController = TextEditingController(text: item['descricao']);
+    final valorController = TextEditingController(text: (item['preco_unitario'] ?? item['valor_total']).toStringAsFixed(2));
+    final quantidadeController = TextEditingController(text: (item['quantidade'] ?? 1).toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.calculate_outlined, color: AppColors.primary, size: 22),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'O Valor Total do item será calculado automaticamente (Preço Unitário × Quantidade).',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextField(
+                controller: nomeController,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Nome do item')),
+            TextField(
+                controller: valorController,
+                decoration: const InputDecoration(hintText: 'Preço Unitário'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+            TextField(
+                controller: quantidadeController,
+                decoration: const InputDecoration(hintText: 'Quantidade'),
+                keyboardType: TextInputType.number),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () async {
+                final nome = nomeController.text;
+                final valorUnitario = double.tryParse(valorController.text.replaceAll(',', '.'));
+                final quantidade = int.tryParse(quantidadeController.text);
+                if (nome.isNotEmpty && valorUnitario != null && quantidade != null) {
+                  await _dbHelper.updateItem({
+                    'id': item['id'],
+                    'id_comanda': widget.comandaId,
+                    'descricao': nome,
+                    'preco_unitario': valorUnitario,
+                    'quantidade': quantidade,
+                    'valor_total': valorUnitario * quantidade
+                  });
+                  Navigator.pop(context);
+                  _loadAllData();
+                }
+              },
+              child: const Text('Salvar')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _incrementItemQuantity(Map<String, dynamic> item) async {
+    final int qtd = item['quantidade'] ?? 1;
+    final double preco = item['preco_unitario'] ?? item['valor_total'];
+    
+    final int novaQuantidade = qtd + 1;
+    final double novoTotal = preco * novaQuantidade;
+
+    await _dbHelper.updateItem({
+      'id': item['id'],
+      'id_comanda': item['id_comanda'],
+      'descricao': item['descricao'],
+      'preco_unitario': preco,
+      'quantidade': novaQuantidade,
+      'valor_total': novoTotal
+    });
+    _loadAllData();
   }
 
   void _showDeleteParticipantConfirmationDialog(Map<String, dynamic> participant) {
@@ -233,81 +329,78 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
               title: Text('Dividir "${item['descricao']}"'),
               content: SizedBox(
                 width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _participantes.length,
-                  itemBuilder: (context, index) {
-                    final participante = _participantes[index];
-                    final participanteId = participante['id'];
-                    final bool isSelected =
-                        selectedParticipantesIds.contains(participanteId);
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Selecione quem consumiu. O valor total deste item (R\$ ${(item['valor_total'] ?? 0.0).toStringAsFixed(2)}) será dividido proporcionalmente pelas quantidades indicadas abaixo.',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _participantes.length,
+                        itemBuilder: (context, index) {
+                          final participante = _participantes[index];
+                          final participanteId = participante['id'];
+                          final bool isSelected = selectedParticipantesIds.contains(participanteId);
 
-                    // Função para alternar a seleção
-                    void toggleSelection() {
-                      setDialogState(() {
-                        if (isSelected) {
-                          selectedParticipantesIds.remove(participanteId);
-                          quantidades.remove(participanteId);
-                        } else {
-                          selectedParticipantesIds.add(participanteId);
-                          quantidades[participanteId] = 1;
-                        }
-                      });
-                    }
+                          void toggleSelection(bool? value) {
+                            setDialogState(() {
+                              if (isSelected) {
+                                selectedParticipantesIds.remove(participanteId);
+                                quantidades.remove(participanteId);
+                              } else {
+                                selectedParticipantesIds.add(participanteId);
+                                quantidades[participanteId] = 1;
+                              }
+                            });
+                          }
 
-                    // ALTERAÇÃO 1 (REVISADA): Substituído CheckboxListTile por um Row customizado.
-                    // DOCUMENTAÇÃO: Esta abordagem nos dá controle total sobre o layout,
-                    // prevenindo a quebra de linha indesejada em nomes longos. O InkWell
-                    // garante que toda a linha seja clicável.
-                    return InkWell(
-                      onTap: toggleSelection,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: isSelected,
-                              onChanged: (value) => toggleSelection(),
-                            ),
-                            // O Expanded garante que o nome use todo o espaço disponível.
-                            Expanded(
-                              child: Text(
-                                participante['nome'],
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ),
-                            // Mostra os controles de quantidade apenas se selecionado.
-                            if (isSelected)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove),
-                                    onPressed: () {
-                                      if ((quantidades[participanteId] ?? 1) > 1) {
-                                        setDialogState(() =>
-                                            quantidades[participanteId] = (quantidades[participanteId] ?? 1) - 1);
-                                      }
-                                    },
-                                  ),
-                                  Text(
-                                    '${quantidades[participanteId] ?? 1}',
+                          return CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: isSelected,
+                            onChanged: toggleSelection,
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    participante['nome'],
                                     style: const TextStyle(fontSize: 16),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add),
-                                    onPressed: () {
-                                      setDialogState(() =>
-                                          quantidades[participanteId] = (quantidades[participanteId] ?? 1) + 1);
-                                    },
+                                ),
+                                if (isSelected)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        onPressed: () {
+                                          if ((quantidades[participanteId] ?? 1) > 1) {
+                                            setDialogState(() => quantidades[participanteId] = (quantidades[participanteId] ?? 1) - 1);
+                                          }
+                                        },
+                                      ),
+                                      Text(
+                                        '${quantidades[participanteId] ?? 1}',
+                                        style: const TextStyle(fontSize: 16),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        onPressed: () {
+                                          setDialogState(() => quantidades[participanteId] = (quantidades[participanteId] ?? 1) + 1);
+                                        },
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              )
-                          ],
-                        ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
               actions: [
@@ -363,6 +456,43 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
     return totals;
   }
 
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.help_outline, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Como Funciona?'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('1. Adicionar Itens', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text('Quando pedir algo, clique no botão (+) e cadastre o preço de apenas 1 unidade (ex: 1 Cerveja = R\$ 12,00).'),
+              SizedBox(height: 12),
+              Text('2. Pediu Mais?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text('Se pedirem mais da mesma coisa, basta clicar no botão (+1) ao lado do item na lista. O app somará o valor automaticamente!'),
+              SizedBox(height: 12),
+              Text('3. Dividir a Conta', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text('Toque em cima do item na lista para selecionar quem bebeu/comeu. O app vai ratear o custo total do item entre as pessoas que você marcou.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Entendi'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _shareSummary() {
     final totals = _calculateTotals();
     final dataDoEvento = DateTime.parse(widget.comandaData).toLocal();
@@ -411,6 +541,13 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.comandaNome),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Como Funciona',
+            onPressed: _showHelpDialog,
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -451,7 +588,7 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
 
             return Card(
               child: ListTile(
-                title: Text(item['descricao']),
+                title: Text('${item['quantidade'] ?? 1}x ${item['descricao']}'),
                 subtitle: Text(
                   nomes.isEmpty ? 'Toque para dividir' : 'Com: $nomes',
                   style:
@@ -461,6 +598,16 @@ class _SplitBillScreenState extends State<SplitBillScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('R\$ ${item['valor_total'].toStringAsFixed(2)}'),
+                    IconButton(
+                      icon: const Icon(Icons.add, color: AppColors.primary),
+                      tooltip: 'Mais um (+1)',
+                      onPressed: () => _incrementItemQuantity(item),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: AppColors.textSecondary),
+                      tooltip: 'Editar item',
+                      onPressed: () => _showEditItemDialog(item),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: AppColors.error),
                       tooltip: 'Remover item',

@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'screens/splash_screen.dart';
 import 'theme/app_colors.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: 'https://dgpkqhsmnboqmmydnzcj.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRncGtxaHNtbmJvcW1teWRuemNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2ODIxODgsImV4cCI6MjA5NjI1ODE4OH0.4M_AlAixZusJoO0lcFqa5wj7Vc3BGOlkGQ1lKheqpy8',
+  );
+
   runApp(const MyApp());
 }
 
@@ -44,7 +52,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary)
             .copyWith(secondary: AppColors.accent),
       ),
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }
